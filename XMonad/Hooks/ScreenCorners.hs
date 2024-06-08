@@ -3,7 +3,7 @@
 -- |
 -- Module      :  XMonad.Hooks.ScreenCorners
 -- Description :  Run X () actions by touching the edge of your screen with your mouse.
--- Copyright   :  (c) 2009 Nils Schweinsberg, 2015 Evgeny Kurnevsky
+-- Copyright   :  (c) 2009 Nils Schweinsberg, 2015 Evgeny Kurnevsky, 2024 Yuanle Song
 -- License     :  BSD3-style (see LICENSE)
 --
 -- Maintainer  :  Nils Schweinsberg <mail@n-sch.de>
@@ -42,6 +42,10 @@ data ScreenCorner = SCUpperLeft
                   | SCUpperRight
                   | SCLowerLeft
                   | SCLowerRight
+                  | SCTop
+                  | SCBottom
+                  | SCLeft
+                  | SCRight
                   deriving (Eq, Ord, Show)
 
 --------------------------------------------------------------------------------
@@ -90,9 +94,21 @@ createWindowAt SCLowerRight = withDisplay $ \dpy ->
         h = displayHeight dpy (defaultScreen dpy) - 1
     in createWindowAt' (fi w) (fi h)
 
--- Create a new X window at a (x,y) Position
-createWindowAt' :: Position -> Position -> X Window
-createWindowAt' x y = withDisplay $ \dpy -> io $ do
+createWindowAt SCTop = withDisplay $ \dpy ->
+    let w = displayWidth  dpy (defaultScreen dpy) - 1
+        -- leave some gap so corner and edge can work nicely when they overlap
+        threshold = 150
+    in createWindowAtWithWidth threshold 0 (fi $ fi w - threshold * 2)
+
+createWindowAt SCBottom = withDisplay $ \dpy ->
+    let w = displayWidth  dpy (defaultScreen dpy) - 1
+        h = displayHeight dpy (defaultScreen dpy) - 1
+        threshold = 150
+    in createWindowAtWithWidth threshold (fi h) (fi $ fi w - threshold * 2)
+
+-- Create a new X window at a (x,y) Position, with given width
+createWindowAtWithWidth :: Position -> Position -> Dimension -> X Window
+createWindowAtWithWidth x y width = withDisplay $ \dpy -> io $ do
 
     rootw <- rootWindow dpy (defaultScreen dpy)
 
@@ -107,7 +123,7 @@ createWindowAt' x y = withDisplay $ \dpy -> io $ do
                      rootw      -- parent window
                      x          -- x
                      y          -- y
-                     1          -- width
+                     width      -- width
                      1          -- height
                      0          -- border width
                      0          -- depth
@@ -122,6 +138,9 @@ createWindowAt' x y = withDisplay $ \dpy -> io $ do
     sync dpy False
     return w
 
+-- Create a new X window at a (x,y) Position
+createWindowAt' :: Position -> Position -> X Window
+createWindowAt' x y = createWindowAtWithWidth x y 1
 
 --------------------------------------------------------------------------------
 -- Event hook
@@ -162,9 +181,10 @@ screenCornerLayoutHook = ModifiedLayout ScreenCornerLayout
 --------------------------------------------------------------------------------
 -- $usage
 --
--- This extension adds KDE-like screen corners to XMonad. By moving your cursor
--- into one of your screen corners you can trigger an @X ()@ action, for
--- example @"XMonad.Actions.GridSelect".goToSelected@ or
+-- This extension adds KDE-like screen corners and GNOME Hot Edge like
+-- features to XMonad. By moving your cursor into one of your screen corners
+-- or top/bottom edges, you can trigger an @X ()@ action, for example
+-- @"XMonad.Actions.GridSelect".goToSelected@ or
 -- @"XMonad.Actions.CycleWS".nextWS@ etc.
 --
 -- To use it, import it on top of your @xmonad.hs@:
@@ -176,6 +196,7 @@ screenCornerLayoutHook = ModifiedLayout ScreenCornerLayout
 -- > myStartupHook = do
 -- >     ...
 -- >     addScreenCorner SCUpperRight (goToSelected def { gs_cellwidth = 200})
+-- >     addScreenCorner SCBottom (goToSelected def)
 -- >     addScreenCorners [ (SCLowerRight, nextWS)
 -- >                      , (SCLowerLeft,  prevWS)
 -- >                      ]
